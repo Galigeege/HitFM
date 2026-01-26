@@ -1,0 +1,8 @@
+{
+  "name": "HitFM AI Resurrection",
+  "description": "An AI-powered continuous radio station resurrecting the spirit of HitFM with bilingual DJs, real-time news, and smart audio ducking.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
