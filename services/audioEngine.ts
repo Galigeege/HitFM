@@ -1,166 +1,269 @@
+import { getAudioStreamUrl, extractYTId } from './pipedService';
+
 declare global {
   interface Window {
     SC: any;
+    YT: any;
   }
 }
 
 export class RadioAudioEngine {
   private audioContext: AudioContext;
-  
-  // Voice Channel (Web Audio API)
+
+  // Mixers
+  private masterGain: GainNode;
   private voiceGainNode: GainNode;
-  private voiceSource: AudioBufferSourceNode | null = null;
+  private musicGainNode: GainNode;
   private analyser: AnalyserNode;
 
-  // Music Channel (SoundCloud Widget)
+  // Sources
+  private nativeAudio: HTMLAudioElement;
+  private musicSourceNode: MediaElementAudioSourceNode | null = null;
+  private voiceSource: AudioBufferSourceNode | null = null;
+
+  // External Widgets
   private scWidget: any;
-  private onSongEndedCallback: (() => void) | null = null;
-  private isWidgetReady: boolean = false;
+  private ytPlayer: any; // Fallback player
 
-  constructor(iframeId: string) {
+  private onSongEndedCallback: ((error?: string) => void) | null = null;
+
+  constructor(scIframeId: string, ytElementId: string) {
     this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    // Voice Channel Setup
+
+    // 1. Create Nodes
+    this.masterGain = this.audioContext.createGain();
     this.voiceGainNode = this.audioContext.createGain();
-    this.voiceGainNode.gain.value = 1.0;
-
-    // Visualizer (Only visualizes Voice now, as SC doesn't allow stream access via iframe)
+    this.musicGainNode = this.audioContext.createGain();
     this.analyser = this.audioContext.createAnalyser();
-    this.analyser.fftSize = 256;
-    
-    this.voiceGainNode.connect(this.analyser);
-    this.analyser.connect(this.audioContext.destination);
 
-    // SoundCloud Widget Setup
-    this.initSoundCloud(iframeId);
+    // 2. Configure Nodes
+    this.masterGain.gain.value = 1.0;
+    this.voiceGainNode.gain.value = 1.0;
+    this.musicGainNode.gain.value = 1.0;
+    this.analyser.fftSize = 256;
+
+    // 3. Connect Graph:
+    // [Voice] -> [VoiceGain] -> [Analyser]
+    // [Music] -> [MusicGain] -> [Analyser] -> [Master] -> [Destination]
+
+    this.voiceGainNode.connect(this.analyser);
+    this.musicGainNode.connect(this.analyser);
+    this.analyser.connect(this.masterGain);
+    this.masterGain.connect(this.audioContext.destination);
+
+    // 4. Native Audio Element Setup (The Music Player)
+    this.nativeAudio = new Audio();
+    this.nativeAudio.crossOrigin = "anonymous";
+
+    // Connect Native Audio element to Web Audio Graph
+    try {
+      this.musicSourceNode = this.audioContext.createMediaElementSource(this.nativeAudio);
+      this.musicSourceNode.connect(this.musicGainNode);
+    } catch (e) {
+      console.warn("MediaElementSource error:", e);
+    }
+
+    this.nativeAudio.onended = () => {
+      if (this.onSongEndedCallback) this.onSongEndedCallback();
+    };
+    this.nativeAudio.onerror = (e) => {
+      console.error("Native Playback Error", e);
+      // Do not fail here, let the playback logic decide if fallback is needed
+    };
+
+    // Initialize External Players
+    this.initSoundCloud(scIframeId);
+    this.initYouTube(ytElementId);
   }
 
   private initSoundCloud(iframeId: string) {
     const iframeElement = document.getElementById(iframeId);
-    if (!iframeElement || !window.SC) {
-      console.error("SoundCloud Widget API not found or iframe missing");
-      return;
-    }
+    if (!iframeElement || !window.SC) return;
 
     this.scWidget = window.SC.Widget(iframeElement);
-    
-    this.scWidget.bind(window.SC.Widget.Events.READY, () => {
-      console.log("SoundCloud Widget Ready");
-      this.isWidgetReady = true;
-    });
-
     this.scWidget.bind(window.SC.Widget.Events.FINISH, () => {
-      console.log("Song Finished");
-      if (this.onSongEndedCallback) {
-        this.onSongEndedCallback();
+      if (this.onSongEndedCallback) this.onSongEndedCallback();
+    });
+  }
+
+  private initYouTube(elementId: string) {
+    // Load YouTube IFrame API if not loaded
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    // Initialize Player when API is ready
+    const checkYT = () => {
+      if (window.YT && window.YT.Player) {
+        this.ytPlayer = new window.YT.Player(elementId, {
+          height: '0', // Hidden
+          width: '0',
+          playerVars: {
+            'autoplay': 0,
+            'controls': 0,
+            'disablekb': 1,
+            'modestbranding': 1,
+            'rel': 0,
+            'showinfo': 0,
+            'origin': window.location.origin
+          },
+          events: {
+            'onStateChange': (event: any) => {
+              // @ts-ignore
+              if (event.data === 0) { // ENDED
+                if (this.onSongEndedCallback) this.onSongEndedCallback();
+              }
+            },
+            'onError': (e: any) => {
+              console.error("YouTube Embed Error:", e.data);
+              // Only trigger error callback if native audio is NOT playing
+              // preventing double error reporting
+              if (this.nativeAudio.paused) {
+                if (this.onSongEndedCallback) this.onSongEndedCallback("YouTube Embed Error");
+              }
+            }
+          }
+        });
+      } else {
+        setTimeout(checkYT, 500);
       }
-    });
-
-    this.scWidget.bind(window.SC.Widget.Events.ERROR, (e: any) => {
-        console.error("SoundCloud Error", e);
-        // Force skip if error
-        if (this.onSongEndedCallback) this.onSongEndedCallback();
-    });
+    };
+    checkYT();
   }
 
-  public getContext() {
-    return this.audioContext;
-  }
-
-  public getAnalyser() {
-    return this.analyser;
-  }
+  public getContext() { return this.audioContext; }
+  public getAnalyser() { return this.analyser; }
 
   public async resume() {
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
-    }
+    if (this.audioContext.state === 'suspended') await this.audioContext.resume();
   }
 
-  public setOnEnded(callback: () => void) {
-    this.onSongEndedCallback = callback;
-  }
+  public setOnEnded(callback: (error?: string) => void) { this.onSongEndedCallback = callback; }
 
-  /**
-   * Loads a SoundCloud URL and plays it immediately.
-   */
-  public playMusic(scUrl: string) {
-    if (!this.scWidget) return;
-
-    this.scWidget.load(scUrl, {
-      auto_play: true,
-      visual: true, // Show album art in iframe
-      show_artwork: true,
-      callback: () => {
-        this.scWidget.setVolume(80); // Default volume
-        // Force play to ensure auto_play works even if policy is strict
-        setTimeout(() => this.scWidget.play(), 100);
-      }
-    });
-  }
-
-  /**
-   * 1. Loads the next song into the widget (stops current).
-   * 2. Sets volume LOW (ducking).
-   * 3. Starts playing song.
-   * 4. Plays DJ Voice.
-   * 5. When DJ Voice ends -> Fade music volume UP.
-   */
-  public playTransition(nextSongUrl: string, voiceBuffer: AudioBuffer, onVoiceEnded: () => void) {
-    if (!this.scWidget) return;
-
-    const ctx = this.audioContext;
-    const now = ctx.currentTime;
-
-    // 1. Prepare Music (Start low for ducking)
-    this.scWidget.load(nextSongUrl, {
-      auto_play: true,
-      visual: true,
-      callback: () => {
-        // Start "Ducked"
-        this.scWidget.setVolume(20); 
-        // Force play
-        setTimeout(() => this.scWidget.play(), 100);
-      }
-    });
-
-    // 2. Play DJ Voice (Standard Web Audio)
+  public stopAll() {
+    if (this.scWidget) this.scWidget.pause();
+    if (this.ytPlayer && this.ytPlayer.pauseVideo) this.ytPlayer.pauseVideo();
+    this.nativeAudio.pause();
+    this.nativeAudio.currentTime = 0; // Reset position
     if (this.voiceSource) {
-      try { this.voiceSource.stop(); } catch(e) {}
+      try { this.voiceSource.stop(); } catch (e) { }
+      this.voiceSource = null;
     }
-    this.voiceSource = ctx.createBufferSource();
-    this.voiceSource.buffer = voiceBuffer;
-    this.voiceSource.connect(this.voiceGainNode);
-
-    // 3. Handle Voice End -> Fade In Music
-    this.voiceSource.onended = () => {
-        // Ramp up volume logic (Simulated via intervals since Widget doesn't have linearRamp)
-        this.fadeWidgetVolume(20, 100, 2000); // Fade from 20 to 100 over 2000ms
-        onVoiceEnded();
-    };
-
-    // 4. Start Voice with a tiny delay to ensure widget is loading
-    this.voiceSource.start(now + 0.8);
   }
 
-  private fadeWidgetVolume(start: number, end: number, duration: number) {
-      if (!this.scWidget) return;
-      
-      const steps = 20;
-      const stepTime = duration / steps;
-      const volStep = (end - start) / steps;
-      let currentVol = start;
-      let stepCount = 0;
+  public async playMusic(song: any) {
+    this.stopAll();
+    const { url, provider } = song;
 
-      const interval = setInterval(() => {
-          currentVol += volStep;
-          stepCount++;
-          
-          this.scWidget.setVolume(Math.min(100, Math.max(0, currentVol)));
+    // Reset Gains
+    this.musicGainNode.gain.setValueAtTime(1.0, this.audioContext.currentTime);
 
-          if (stepCount >= steps) {
-              clearInterval(interval);
+    if (provider === 'youtube') {
+      const videoId = extractYTId(url);
+      console.log(`[AudioEngine] Processing YouTube ID: ${videoId}`);
+
+      if (videoId) {
+        // STRATEGY 1: Try Piped First (Superior quality + Visualizer)
+        const streamUrl = await getAudioStreamUrl(videoId);
+
+        if (streamUrl) {
+          console.log(`[AudioEngine] Playing via Piped Stream`);
+          this.nativeAudio.src = streamUrl;
+          try {
+            await this.nativeAudio.play();
+            return; // Success! Exit function.
+          } catch (e) {
+            console.warn("Piped playback failed, falling back to Embed...", e);
+            // Fall through to embed strategy
           }
-      }, stepTime);
+        } else {
+          console.warn("Piped resolution failed, falling back to Embed...");
+        }
+
+        // STRATEGY 2: Fallback to YouTube Embed (No Visualizer, but reliable audio)
+        console.log(`[AudioEngine] Falling back to YouTube Embed`);
+        if (this.ytPlayer && this.ytPlayer.loadVideoById) {
+          this.ytPlayer.loadVideoById(videoId);
+          this.ytPlayer.setVolume(100);
+          this.ytPlayer.playVideo();
+        } else {
+          console.error("YouTube Player not ready for fallback.");
+          if (this.onSongEndedCallback) this.onSongEndedCallback("All playback methods failed");
+        }
+      } else {
+        console.error("Invalid YouTube URL");
+      }
+    } else if (provider === 'native') {
+      this.nativeAudio.src = url;
+      this.nativeAudio.volume = 1.0;
+      this.nativeAudio.play().catch(e => console.error("Native Playback Error:", e));
+    } else {
+      // Default to SoundCloud
+      if (this.scWidget) {
+        this.scWidget.load(url, {
+          auto_play: true,
+          callback: () => this.scWidget.setVolume(100)
+        });
+      }
+    }
+  }
+
+  public playDJVoice(buffer: AudioBuffer) {
+    if (this.voiceSource) {
+      try { this.voiceSource.stop(); } catch (e) { }
+    }
+
+    this.voiceSource = this.audioContext.createBufferSource();
+    this.voiceSource.buffer = buffer;
+    this.voiceSource.connect(this.voiceGainNode);
+    this.voiceSource.start();
+  }
+
+  /**
+   * Ducking Transition:
+   * 1. Music volume drops (Duck)
+   * 2. DJ Voice plays
+   * 3. Music volume rises (Restore)
+   */
+  public async playTransition(song: any, voiceBuffer: AudioBuffer, onVoiceEnded: () => void) {
+    // 1. Prepare Next Song (using await to ensure stream is ready/fetched)
+    await this.playMusic(song);
+
+    // 2. Duck Music Immediately
+    const now = this.audioContext.currentTime;
+
+    // We modify the gain node for Native Audio
+    this.musicGainNode.gain.cancelScheduledValues(now);
+    this.musicGainNode.gain.setValueAtTime(1.0, now);
+    this.musicGainNode.gain.linearRampToValueAtTime(0.2, now + 0.5); // Duck down in 0.5s
+
+    // Also duck Embed if that's what ended up playing
+    // Check if nativeAudio is paused (implies Embed is active or nothing is playing)
+    if (this.nativeAudio.paused && this.ytPlayer && this.ytPlayer.setVolume) {
+      this.ytPlayer.setVolume(20);
+    }
+
+    // 3. Play Voice
+    this.playDJVoice(voiceBuffer);
+
+    // 4. Schedule Restore
+    // Note: buffer.duration gives voice length in seconds
+    const voiceDuration = voiceBuffer.duration;
+
+    // Fire callback when voice visually ends
+    setTimeout(() => {
+      onVoiceEnded();
+      // Restore Gain (Native)
+      const restoreTime = this.audioContext.currentTime;
+      this.musicGainNode.gain.linearRampToValueAtTime(1.0, restoreTime + 1.5);
+
+      // Restore Embed Volume
+      if (this.nativeAudio.paused && this.ytPlayer) {
+        this.ytPlayer.setVolume(100);
+      }
+    }, voiceDuration * 1000);
   }
 }

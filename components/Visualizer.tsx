@@ -25,23 +25,26 @@ const Visualizer: React.FC<VisualizerProps> = ({ analyser }) => {
 
       analyser.getByteFrequencyData(dataArray);
 
-      ctx.fillStyle = '#111827'; // match bg-gray-900 roughly
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      // Clear with transparency
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
       const barWidth = (WIDTH / bufferLength) * 2.5;
       let barHeight;
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
-        barHeight = dataArray[i] / 2;
+        barHeight = (dataArray[i] / 2) * 1.5; // Slight boost for visibility
 
-        // Gradient
+        // Gradient: Rose to Amber
         const gradient = ctx.createLinearGradient(0, HEIGHT - barHeight, 0, HEIGHT);
-        gradient.addColorStop(0, '#f59e0b'); // amber-500
-        gradient.addColorStop(1, '#ef4444'); // red-500
+        gradient.addColorStop(0, '#fca5a5'); // lighter rose/peach top
+        gradient.addColorStop(0.5, '#f43f5e'); // rose-500
+        gradient.addColorStop(1, '#d97706'); // amber-600
 
         ctx.fillStyle = gradient;
-        ctx.fillRect(x, HEIGHT - barHeight, barWidth, barHeight);
+
+        // Rounded caps for bars (simulated by clearing corner or just simple rect)
+        ctx.fillRect(x, HEIGHT - barHeight, barWidth - 1, barHeight);
 
         x += barWidth + 1;
       }
@@ -51,11 +54,11 @@ const Visualizer: React.FC<VisualizerProps> = ({ analyser }) => {
   }, [analyser]);
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      width={600} 
-      height={100} 
-      className="w-full h-24 rounded-lg bg-gray-900 border border-gray-700 opacity-80"
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={100}
+      className="w-full h-24 rounded-xl opacity-90"
     />
   );
 };

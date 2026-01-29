@@ -2,64 +2,35 @@ import { Song, DJPersona } from './types';
 
 // Updated to use SoundCloud URLs
 export const PLAYLIST: Song[] = [
-  {
-    id: 'sc-1',
-    title: 'As It Was (Slowed)',
-    artist: 'Harry Styles',
-    albumArt: 'https://i1.sndcdn.com/artworks-5E4caF7Qo08N-0-t500x500.jpg', // Placeholder or fetched
-    duration: 0, // Will be determined by Widget
-    genre: 'Pop / Slowed',
-    url: 'https://soundcloud.com/itdubzti/harry-styles-as-it-was-slowed?si=7820d70bbbd74ccfab92b0cefbca8644'
-  },
-  {
-    id: 'sc-2',
-    title: 'Cruel Summer',
-    artist: 'Taylor Swift',
-    albumArt: 'https://i1.sndcdn.com/artworks-2l10X5Qz2z2e-0-t500x500.jpg',
-    duration: 0,
-    genre: 'Pop',
-    url: 'https://soundcloud.com/user-969623351/cruel-summer-taylor-swift' 
-  },
-  {
-    id: 'sc-3',
-    title: 'Levitating',
-    artist: 'Dua Lipa',
-    albumArt: 'https://i1.sndcdn.com/artworks-000676449193-02s8w7-t500x500.jpg',
-    duration: 0,
-    genre: 'Disco Pop',
-    url: 'https://soundcloud.com/dualipa/levitating-feat-dababy'
-  },
-  {
-    id: 'sc-4',
-    title: 'Midnight City',
-    artist: 'M83',
-    albumArt: 'https://i1.sndcdn.com/artworks-000014022793-138249-t500x500.jpg',
-    duration: 0,
-    genre: 'Indie Pop',
-    url: 'https://soundcloud.com/m83/midnight-city'
-  }
+  { id: 'yt-secure-1', title: 'redrum', artist: '21 Savage', albumArt: 'https://i.ytimg.com/vi/mrV8kK5t0V8/maxresdefault.jpg', duration: 0, genre: 'Hip Hop', url: 'https://youtu.be/mrV8kK5t0V8?si=Yr-AWq_AgHXluIkR', provider: 'youtube' },
+  { id: 'yt-secure-2', title: 'FE!N', artist: 'Travis Scott', albumArt: 'https://i.ytimg.com/vi/kbEC-AGr9n0/maxresdefault.jpg', duration: 0, genre: 'Hip Hop', url: 'https://youtu.be/kbEC-AGr9n0?si=69UJBQxx54ZLrxy2', provider: 'youtube' },
+  { id: 'yt-secure-3', title: 'Lovin On Me', artist: 'Jack Harlow', albumArt: 'https://i.ytimg.com/vi/u2ah9tWTkmk/maxresdefault.jpg', duration: 0, genre: 'Pop Rap', url: 'https://youtu.be/u2ah9tWTkmk?si=qXENa4gYB5Bt5t_E', provider: 'youtube' },
+  { id: 'yt-secure-4', title: 'Beautiful Things', artist: 'Benson Boone', albumArt: 'https://i.ytimg.com/vi/Oa_RSwwpPaA/maxresdefault.jpg', duration: 0, genre: 'Pop', url: 'https://youtu.be/Oa_RSwwpPaA?si=gpwudAktGhEhozt1', provider: 'youtube' },
+  { id: 'yt-secure-5', title: 'One Of The Girls', artist: 'The Weeknd, JENNIE, Lily-Rose Depp', albumArt: 'https://i.ytimg.com/vi/ygTZZpVkmKg/maxresdefault.jpg', duration: 0, genre: 'R&B', url: 'https://youtu.be/ygTZZpVkmKg?si=dwoNWbF_LelxILNw', provider: 'youtube' }
 ];
 
 export const DJ_PERSONAS: DJPersona[] = [
   {
     name: 'Andy (The Hype Man)',
-    voiceName: 'Puck', // Gemini voice mapping
+    voiceName: 'Puck',
     description: 'High energy, morning show vibes, fast talker.',
-    systemInstruction: `You are Andy, the host of HitFM Morning Show. 
-    Personality: Super high energy, chaotic good, very enthusiastic (E-type personality). 
-    Language Style: Bilingual (English/Chinese) mix naturally. "Chinglish" is encouraged for vibe.
-    Key Phrases: "Wake up wake up!", "Let's go!", "Check this banger out".
-    Content Focus: You are obsessed with the Billboard Hot 100, viral TikTok trends, and breaking celebrity news. Hype up every song like it's a world premiere.`
+    systemInstruction: `You are Andy, the high-octane host of "HitFM Morning Rush". 
+    Radio Technique: Use "The Tease" - hint at a celebrity secret or a massive track coming up later. 
+    Style: Bilingual (English/Chinese). Hyper-active, uses radio-style sound effect descriptions like [Excited Laughs]. 
+    Interaction: Act as if you're looking at a live studio clock and a weather monitor. 
+    Key Role: You are the listener's caffeine. Keep the energy peaking. Every transition should feel like an event.
+    Catchphrases: "Your energy plug-in!", "Don't touch that dial!", "In the mix with Andy".`
   },
   {
     name: 'Valen (Chill Evening)',
-    voiceName: 'Kore', // Gemini voice mapping
+    voiceName: 'Kore',
     description: 'Sophisticated, deep voice, evening drive time.',
-    systemInstruction: `You are Valen, the host of HitFM Late Night.
-    Personality: Cool, calm, knowledgeable about music history, witty but relaxed.
-    Language Style: Smooth Bilingual (English/Chinese). Elegant transitions.
-    Key Phrases: "Stay chill", "Vibing with you", "Music for the soul".
-    Content Focus: You love sharing artist backstories, emotional context, and connecting the music to the city's weather or mood. Make the listener feel like they are in a movie.`
+    systemInstruction: `You are Valen, the smooth voice of "HitFM Late Night City". 
+    Radio Technique: Use "Deep Storytelling" - share a 1-sentence intimate fact about the artist that makes the listener feel connected. 
+    Style: Smooth, low-register, intimate. Bilingual (English/Chinese). 
+    Interaction: Talk to the listener like they are the only person in the world. Mention the city lights and the night mood. 
+    Key Role: You are the listener's cool friend sharing a glass of wine. Use soft transitions.
+    Catchphrases: "Lean back, I've got you", "The city sounds better with Valen", "Keeping it 100 on HitFM".`
   }
 ];
 

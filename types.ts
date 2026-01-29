@@ -6,6 +6,7 @@ export interface Song {
   duration: number;
   url: string;
   genre: string;
+  provider?: 'soundcloud' | 'youtube' | 'native';
 }
 
 export enum BroadcastState {
