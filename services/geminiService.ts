@@ -381,3 +381,71 @@ export const fetchTrendingBatch = async (apiKey?: string): Promise<Song[]> => {
     return [];
   }
 };
+
+export interface GeneratedLyrics {
+  title: string;
+  lyrics: string;   // Full lyrics with [Verse], [Chorus], etc.
+  tags: string;     // SUNO-compatible genre/style tags
+  genre: string;
+}
+
+/**
+ * Generate original song lyrics using Gemini for SUNO music generation
+ */
+export const generateSongLyrics = async (
+  genre: string = "Pop",
+  mood: string = "upbeat",
+  theme?: string,
+  apiKey?: string
+): Promise<GeneratedLyrics> => {
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+  const themePrompt = theme ? `Theme/Topic: ${theme}.` : "Choose an interesting, relatable theme.";
+
+  const prompt = `You are a professional songwriter. Create original song lyrics for a ${mood} ${genre} song.
+
+${themePrompt}
+
+REQUIREMENTS:
+1. Use proper song structure tags: [Verse 1], [Chorus], [Verse 2], [Bridge], etc.
+2. Keep it radio-friendly (no explicit content)
+3. 2-3 verses, 1-2 choruses, optional bridge
+4. Catchy and memorable hooks
+
+OUTPUT FORMAT (JSON only, no markdown):
+{
+  "title": "Song Title Here",
+  "lyrics": "[Verse 1]\\nFirst line...\\nSecond line...\\n\\n[Chorus]\\nChorus lyrics...\\n\\n[Verse 2]\\n...",
+  "tags": "genre tags for SUNO like: pop, upbeat, energetic, female vocals",
+  "genre": "${genre}"
+}
+
+Start your response directly with '{'.`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      maxOutputTokens: 4000,
+      temperature: 0.9  // Higher creativity for lyrics
+    }
+  };
+
+  try {
+    console.log(`[Lyrics] Generating ${mood} ${genre} song...`);
+    const data = await callGemini(model, body);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    const result = safeJsonParse(text);
+
+    console.log(`[Lyrics] Generated: "${result.title}"`);
+
+    return {
+      title: result.title || "Untitled Track",
+      lyrics: result.lyrics || "[Verse 1]\nLa la la\n\n[Chorus]\nOh yeah",
+      tags: result.tags || `${genre}, ${mood}`,
+      genre: result.genre || genre
+    };
+  } catch (error: any) {
+    console.error("[Lyrics] Generation failed:", error);
+    throw error;
+  }
+};

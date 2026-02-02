@@ -6,7 +6,7 @@ export interface Song {
   duration: number;
   url: string;
   genre: string;
-  provider?: 'soundcloud' | 'youtube' | 'native';
+  provider?: 'soundcloud' | 'youtube' | 'native' | 'suno';
 }
 
 export enum BroadcastState {
@@ -15,7 +15,8 @@ export enum BroadcastState {
   PLAYING_MUSIC = 'PLAYING_MUSIC',
   GENERATING_DJ = 'GENERATING_DJ',
   PLAYING_DJ = 'PLAYING_DJ',
-  CHITCHAT = 'CHITCHAT', // New: Standalone gossip/news segment
+  CHITCHAT = 'CHITCHAT',
+  GENERATING_MUSIC = 'GENERATING_MUSIC', // SUNO is creating a new track
 }
 
 export interface DJPersona {

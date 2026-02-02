@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Song, BroadcastState, DJPersona, LogEntry } from './types';
 import { PLAYLIST, DJ_PERSONAS } from './constants';
-import { generateDJScript, generateDJAudio, fetchNextTrendingSong, fetchTrendingBatch, setGeminiLogger } from './services/geminiService';
+import { generateDJScript, generateDJAudio, generateSongLyrics, setGeminiLogger } from './services/geminiService';
+import { submitMusicGeneration, waitForCompletion } from './services/sunoService';
 import { RadioAudioEngine } from './services/audioEngine';
 import Visualizer from './components/Visualizer';
 import RequestLine from './components/RequestLine';
@@ -79,21 +80,60 @@ const App: React.FC = () => {
 
     let next: Song;
     try {
-      next = await fetchNextTrendingSong(prevSong.artist, apiKey);
-      addLog('info', `GEMINI: Found "${next.title}" [${next.provider}]`);
-      addLog('info', `METADATA: ${next.url}`);
+      // === SUNO AI MUSIC GENERATION ===
+      setBroadcastState(BroadcastState.GENERATING_MUSIC);
+      addLog('info', `SUNO: Generating original track...`);
+
+      // 1. Generate lyrics via Gemini
+      const genres = ['Pop', 'Electronic', 'R&B', 'Indie', 'Dance'];
+      const moods = ['upbeat', 'chill', 'energetic', 'romantic', 'dreamy'];
+      const randomGenre = genres[Math.floor(Math.random() * genres.length)];
+      const randomMood = moods[Math.floor(Math.random() * moods.length)];
+
+      const lyrics = await generateSongLyrics(randomGenre, randomMood);
+      addLog('info', `LYRICS: "${lyrics.title}" [${lyrics.tags}]`);
+
+      // 2. Submit to SUNO for music generation
+      const taskId = await submitMusicGeneration({
+        prompt: lyrics.lyrics,
+        title: lyrics.title,
+        tags: lyrics.tags
+      });
+      addLog('info', `SUNO: Task submitted (ID: ${taskId})`);
+
+      // 3. Poll for completion (this can take 30-90 seconds)
+      const result = await waitForCompletion(taskId);
+
+      if (!result.audio_url) {
+        throw new Error('SUNO returned no audio URL');
+      }
+
+      next = {
+        id: `suno-${taskId}`,
+        title: lyrics.title,
+        artist: 'HitFM AI',
+        albumArt: result.image_url || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500',
+        duration: 0,
+        genre: lyrics.genre,
+        url: result.audio_url,
+        provider: 'suno'
+      };
+
+      addLog('info', `SUNO: Track ready! "${next.title}"`);
+
     } catch (e: any) {
-      console.error("fetchNextTrendingSong Error:", e);
+      console.error("SUNO Generation Error:", e);
       if (e.message.includes("QUOTA_EXCEEDED")) {
         setIsQuotaExceeded(true);
         lastQuotaTime.current = Date.now();
         addLog('error', `QUOTA EXCEEDED: ${e.message}`);
       } else {
-        addLog('error', `AI FETCH ERROR: ${e.message || "Unknown"}`);
+        addLog('error', `SUNO ERROR: ${e.message || "Unknown"}`);
       }
+      // Fallback to pre-loaded playlist
       const fallbackIdx = Math.floor(Math.random() * songsPool.length);
       next = songsPool[fallbackIdx];
-      addLog('info', `SYSTEM: Fallback song picked: "${next.title}"`);
+      addLog('info', `SYSTEM: Fallback to playlist: "${next.title}"`);
     }
 
     nextSongRef.current = next;
@@ -237,25 +277,8 @@ const App: React.FC = () => {
   const skipTrack = () => { addLog('info', "USER: Skip requested."); handleSongEnded(); };
   const clearLogs = () => setLogs([]);
 
-  useEffect(() => {
-    if (broadcastState === BroadcastState.IDLE) return;
-    const expandPool = async () => {
-      if (!isAIEnabled) return;
-      try {
-        const newSongs = await fetchTrendingBatch(apiKey);
-        if (newSongs.length > 0) {
-          setSongsPool(prev => {
-            const uniqueNew = newSongs.filter(ns => !prev.find(ps => ps.url === ns.url));
-            if (uniqueNew.length > 0) addLog('info', `SYSTEM: Added ${uniqueNew.length} tracks.`);
-            return [...prev, ...uniqueNew];
-          });
-        }
-      } catch (e) { }
-    };
-    const initialTimer = setTimeout(expandPool, 30000);
-    const interval = setInterval(expandPool, 15 * 60 * 1000);
-    return () => { clearTimeout(initialTimer); clearInterval(interval); };
-  }, [broadcastState, apiKey, isAIEnabled]);
+  // Pool expansion is no longer needed with SUNO generation
+  // Each track is generated on-demand
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col lg:flex-row items-center lg:items-start justify-center p-4 lg:p-12 gap-8 selection:bg-rose-500/30 overflow-x-hidden relative text-sm lg:text-base">

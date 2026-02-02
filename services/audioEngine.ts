@@ -200,6 +200,16 @@ export class RadioAudioEngine {
       this.nativeAudio.src = url;
       this.nativeAudio.volume = 1.0;
       this.nativeAudio.play().catch(e => console.error("Native Playback Error:", e));
+    } else if (provider === 'suno') {
+      // SUNO provides direct audio URLs - use native audio for full Web Audio API support
+      console.log(`[AudioEngine] Playing SUNO generated audio`);
+      this.nativeAudio.src = url;
+      try {
+        await this.nativeAudio.play();
+      } catch (e) {
+        console.error("SUNO Playback Error:", e);
+        if (this.onSongEndedCallback) this.onSongEndedCallback("SUNO Playback Failed");
+      }
     } else {
       // Default to SoundCloud
       if (this.scWidget) {
