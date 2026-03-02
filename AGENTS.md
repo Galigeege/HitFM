@@ -27,3 +27,6 @@ Copy `.env.example` to `.env`. The only required key is `GEMINI_API_KEY` for the
 - YouTube IFrame API and SoundCloud Widget API are loaded from external CDNs in `index.html`.
 - All AI API calls (Gemini, SUNO, TTS) go through the YunWu gateway (`yunwu.ai`) directly from the browser — there is no backend proxy.
 - The `@google/genai` package is listed as a dependency but the code uses raw `fetch` calls instead of the SDK.
+- Vite reads `.env` at startup via `loadEnv`; if you change `.env` you must restart the dev server.
+- The SUNO music generation endpoint may return 503 intermittently; the app handles this gracefully by falling back to the built-in YouTube/SoundCloud playlist defined in `constants.ts`.
+- TTS uses `gemini-2.5-flash-preview-tts` which has strict quota limits; QUOTA_EXCEEDED errors are expected under heavy use and the app continues without voice synthesis.
